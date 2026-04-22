@@ -1,1 +1,17 @@
-{}
+{
+  "IMG_20260324_133118.jpg": {
+    "hash": "ef20c4595a6ec574c228e4f2ce251abcddbbfa9290c550c4d8d9cf1187c77f3c",
+    "processed_at": "2026-04-22T09:47:41Z",
+    "output": "IMG_20260324_133118.md"
+  },
+  "guaidil-2 (1).pdf": {
+    "hash": "35f89c28a96cdce0bc37f3b2eb556921b6320ef185e8000498eb3d037148c3aa",
+    "processed_at": "2026-04-22T09:49:21Z",
+    "output": "guaidil-2 (1).md"
+  },
+  "resumen_redireccion_mediateca.pdf": {
+    "hash": "ff05d5617411f583f1b39b4a2a7db9e376adcee2909070ac1890df5c25a81ccd",
+    "processed_at": "2026-04-22T09:49:22Z",
+    "output": "resumen_redireccion_mediateca.md"
+  }
+}
