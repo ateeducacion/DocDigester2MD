@@ -11,10 +11,35 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 REPO_ROOT = Path(__file__).parent
-INPUT_DIR = REPO_ROOT / "input"
-OUTPUT_DIR = REPO_ROOT / "output"
-PROCESSED_FILE = REPO_ROOT / "processed.json"
+
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+def load_config() -> dict:
+    """Load docdigester.yaml from CWD, then script dir, falling back to defaults."""
+    defaults = {
+        "input_dir": "input",
+        "output_dir": "output",
+        "processed_file": "processed.yaml",
+    }
+    for search_dir in (Path.cwd(), REPO_ROOT):
+        cfg_path = search_dir / "docdigester.yaml"
+        if cfg_path.exists():
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            return {**defaults, **data}
+    return defaults
+
+
+_cfg = load_config()
+INPUT_DIR = Path(_cfg["input_dir"])
+OUTPUT_DIR = Path(_cfg["output_dir"])
+PROCESSED_FILE = Path(_cfg["processed_file"])
 ERRORS_LOG = OUTPUT_DIR / "errors.log"
 
 DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".pptx", ".xls", ".xlsx"}
@@ -40,18 +65,32 @@ def sha256_file(path: Path) -> str:
 
 
 def load_processed() -> dict:
+    """Load processed.yaml; auto-migrate from processed.json if needed."""
     if PROCESSED_FILE.exists():
         try:
             with open(PROCESSED_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
+                return yaml.safe_load(f) or {}
+        except (yaml.YAMLError, OSError):
             return {}
+
+    # Migrate from legacy processed.json if present
+    legacy = PROCESSED_FILE.parent / "processed.json"
+    if legacy.exists():
+        try:
+            with open(legacy, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            print(f"Migrating {legacy.name} → {PROCESSED_FILE.name}")
+            save_processed(data)
+            return data
+        except (json.JSONDecodeError, OSError):
+            pass
+
     return {}
 
 
 def save_processed(data: dict) -> None:
     with open(PROCESSED_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        yaml.dump(data, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
 
 
 def log_error(filename: str, error: str) -> None:
@@ -101,39 +140,73 @@ def extract_youtube_url(path: Path) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Cached clients
+# ---------------------------------------------------------------------------
+
+_whisper_model = None
+_markitdown = None
+_whisper_model_name = "base"
+
+
+def get_whisper_model():
+    global _whisper_model
+    if _whisper_model is None:
+        import whisper
+        _whisper_model = whisper.load_model(_whisper_model_name)
+    return _whisper_model
+
+
+def get_markitdown():
+    global _markitdown
+    if _markitdown is None:
+        from markitdown import MarkItDown
+        from openai import OpenAI
+        client = OpenAI(
+            api_key=os.environ["AI_API_KEY"],
+            base_url=os.environ["AI_BASE_URL"],
+        )
+        _markitdown = MarkItDown(
+            llm_client=client,
+            llm_model=os.environ["AI_MODEL"],
+            llm_prompt=(
+                "If this image contains text (printed or handwritten), transcribe it exactly as written, "
+                "preserving the original structure and layout. "
+                "If the image contains no text or is primarily visual, provide a detailed description of its content."
+            ),
+        )
+    return _markitdown
+
+
+# ---------------------------------------------------------------------------
 # Whisper (local, CPU)
 # ---------------------------------------------------------------------------
 
 def whisper_transcribe(audio_path: Path) -> str:
-    import whisper  # imported lazily — only when needed
-    model = whisper.load_model("base")
+    model = get_whisper_model()
     result = model.transcribe(str(audio_path), fp16=False)
     return result.get("text", "").strip()
 
 
 # ---------------------------------------------------------------------------
-# Converters
+# Converters — each returns (markdown_content, method, model_or_None)
 # ---------------------------------------------------------------------------
 
-def convert_document_or_image(path: Path) -> str:
-    from markitdown import MarkItDown
-    from openai import OpenAI
-
-    client = OpenAI(
-        api_key=os.environ["AI_API_KEY"],
-        base_url=os.environ["AI_BASE_URL"],
-    )
-    md = MarkItDown(llm_client=client, llm_model=os.environ["AI_MODEL"])
-    result = md.convert(str(path))
-    return result.text_content
+def convert_document(path: Path) -> tuple[str, str, str | None]:
+    result = get_markitdown().convert(str(path))
+    return result.text_content, "markitdown", os.environ.get("AI_MODEL")
 
 
-def convert_audio(path: Path) -> str:
+def convert_image(path: Path) -> tuple[str, str, str | None]:
+    result = get_markitdown().convert(str(path))
+    return result.text_content, "markitdown+llm", os.environ.get("AI_MODEL")
+
+
+def convert_audio(path: Path) -> tuple[str, str, str | None]:
     text = whisper_transcribe(path)
-    return f"## Audio Transcription\n\n{text}\n"
+    return f"## Audio Transcription\n\n{text}\n", "whisper", _whisper_model_name
 
 
-def convert_youtube(url: str) -> str:
+def convert_youtube(url: str) -> tuple[str, str, str | None]:
     # Primary path: youtube_transcript_api (no download needed)
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
@@ -143,7 +216,8 @@ def convert_youtube(url: str) -> str:
             video_id = m.group(1)
             entries = YouTubeTranscriptApi.get_transcript(video_id)
             text = " ".join(e["text"] for e in entries)
-            return f"## YouTube Transcript\n\nSource: {url}\n\n{text}\n"
+            content = f"## YouTube Transcript\n\nSource: {url}\n\n{text}\n"
+            return content, "youtube_transcript_api", None
     except Exception:
         pass  # fall through to yt-dlp + whisper
 
@@ -163,13 +237,17 @@ def convert_youtube(url: str) -> str:
             raise RuntimeError("yt-dlp produced no audio output")
 
         text = whisper_transcribe(mp3_files[0])
-        return f"## YouTube Transcript (via Whisper)\n\nSource: {url}\n\n{text}\n"
+        content = f"## YouTube Transcript (via Whisper)\n\nSource: {url}\n\n{text}\n"
+        return content, "yt-dlp+whisper", _whisper_model_name
 
 
-def process_file(path: Path) -> str:
+def process_file(path: Path) -> tuple[str, str, str | None]:
+    """Return (markdown_content, method, model)."""
     ext = path.suffix.lower()
-    if ext in DOCUMENT_EXTENSIONS or ext in IMAGE_EXTENSIONS:
-        return convert_document_or_image(path)
+    if ext in DOCUMENT_EXTENSIONS:
+        return convert_document(path)
+    if ext in IMAGE_EXTENSIONS:
+        return convert_image(path)
     if ext in AUDIO_EXTENSIONS:
         return convert_audio(path)
     if ext in YOUTUBE_EXTENSIONS:
@@ -185,8 +263,8 @@ def process_file(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    INPUT_DIR.mkdir(exist_ok=True)
+    INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     all_ext = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS | AUDIO_EXTENSIONS | YOUTUBE_EXTENSIONS
     processed = load_processed()
@@ -224,18 +302,23 @@ def main() -> None:
         print(f"{action}: {name}  ({ftype}, {size:,} bytes)")
 
         try:
-            content = process_file(path)
+            content, method, model = process_file(path)
             fm = build_frontmatter(name, ftype, size)
             output_path = OUTPUT_DIR / (path.stem + ".md")
             output_path.write_text(fm + content, encoding="utf-8")
 
-            processed[name] = {
+            record: dict = {
                 "hash": file_hash,
                 "processed_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
                 "output": output_path.name,
+                "method": method,
             }
+            if model is not None:
+                record["model"] = model
+
+            processed[name] = record
             newly_processed.append(name)
-            print(f"  -> {output_path.relative_to(REPO_ROOT)}")
+            print(f"  -> {output_path}  [{method}" + (f", {model}]" if model else "]"))
 
         except Exception as exc:
             log_error(name, str(exc))

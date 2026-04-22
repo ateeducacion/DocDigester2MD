@@ -1,0 +1,7 @@
+# DocDigester2MD configuration
+# Paths are relative to the working directory where the script is run.
+# When used as a plugin/addon in another repo, set these to match that repo's layout.
+
+input_dir: input
+output_dir: output
+processed_file: processed.yaml
