@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,7 @@ def load_config() -> dict:
     defaults = {
         "input_dir": "input",
         "output_dir": "output",
+        "processed_dir": "processed",
         "processed_file": "processed.yaml",
     }
     for search_dir in (Path.cwd(), REPO_ROOT):
@@ -39,6 +41,7 @@ def load_config() -> dict:
 _cfg = load_config()
 INPUT_DIR = Path(_cfg["input_dir"])
 OUTPUT_DIR = Path(_cfg["output_dir"])
+PROCESSED_DIR = Path(_cfg["processed_dir"])
 PROCESSED_FILE = Path(_cfg["processed_file"])
 ERRORS_LOG = OUTPUT_DIR / "errors.log"
 
@@ -265,6 +268,7 @@ def process_file(path: Path) -> tuple[str, str, str | None]:
 def main() -> None:
     INPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
     all_ext = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS | AUDIO_EXTENSIONS | YOUTUBE_EXTENSIONS
     processed = load_processed()
@@ -316,9 +320,13 @@ def main() -> None:
             if model is not None:
                 record["model"] = model
 
+            dest = PROCESSED_DIR / name
+            shutil.move(str(path), dest)
+
             processed[name] = record
             newly_processed.append(name)
             print(f"  -> {output_path}  [{method}" + (f", {model}]" if model else "]"))
+            print(f"  -> moved to {dest}")
 
         except Exception as exc:
             log_error(name, str(exc))
