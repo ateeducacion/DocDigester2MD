@@ -1,0 +1,8 @@
+# Optional heavy dependencies for local audio/YouTube-fallback transcription.
+# Only needed when processing audio files (.mp3/.wav/.m4a/.ogg) or YouTube
+# videos without captions. Pulls in torch (~2GB). Installed in the ":audio"
+# Docker image variant (build with INCLUDE_AUDIO=true).
+openai-whisper
+torch
+torchaudio
+yt-dlp

@@ -17,38 +17,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
-
+      # Runs inside the pre-built GHCR image (deps baked in → no pip install).
+      # Requires the "Build & Push Docker image" workflow to have published the
+      # image at least once.
       - name: Run DocDigester2MD
-        env:
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_MODEL: ${{ secrets.AI_MODEL }}
-        run: python DocDigester2MD.py
+        uses: ./
+        with:
+          ai_api_key: ${{ secrets.AI_API_KEY }}
+          ai_base_url: ${{ secrets.AI_BASE_URL }}
+          ai_model: ${{ secrets.AI_MODEL }}
 
       - name: Commit generated files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add output/ processed.json
+          git add output/ processed.yaml
 
           if git diff --staged --quiet; then
             echo "No changes to commit — nothing new was processed."

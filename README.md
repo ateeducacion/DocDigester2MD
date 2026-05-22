@@ -79,16 +79,13 @@ output/
 └── errors.log              # solo si hubo errores parciales
 ```
 
-El archivo `processed.json` en la raíz registra cada archivo procesado:
+El archivo `processed.yaml` en la raíz registra cada archivo procesado:
 
-```json
-{
-  "informe_anual.pdf": {
-    "hash": "a3f8c1...",
-    "processed_at": "2026-04-22T10:30:00Z",
-    "output": "informe_anual.md"
-  }
-}
+```yaml
+informe_anual.pdf:
+  hash: a3f8c1...
+  processed_at: 2026-04-22T10:30:00Z
+  output: informe_anual.md
 ```
 
 Si se vuelve a subir el mismo archivo sin cambios, se omite el reprocesado. Si el archivo cambió (hash distinto), se reprocesa y el `.md` se sobreescribe.
@@ -118,3 +115,59 @@ Solo hay que actualizar los tres secrets del repositorio:
 | OpenRouter | `sk-or-...` | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet` |
 
 No es necesario modificar el código ni el workflow.
+
+---
+
+## Uso como GitHub Action (reutilizable)
+
+El proyecto se publica como Action Docker. Cualquier repositorio puede invocarlo:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: erseco/DocDigester2MD@v1
+  with:
+    ai_api_key: ${{ secrets.AI_API_KEY }}
+    ai_base_url: ${{ secrets.AI_BASE_URL }}
+    ai_model: ${{ secrets.AI_MODEL }}
+```
+
+La Action usa la imagen pre-construida `ghcr.io/erseco/docdigester2md:latest` (ligera, sin
+Whisper). Procesa los archivos de `input/` y escribe los `.md` en `output/`. Para transcripción
+de audio/YouTube usa la imagen con Whisper (`:audio`) mediante un paso `container:` o
+`docker run` propio.
+
+---
+
+## Uso con Docker
+
+Imagen ligera (documentos e imágenes — recomendada por defecto):
+
+```bash
+docker pull ghcr.io/erseco/docdigester2md:latest
+
+docker run --rm \
+  -e AI_API_KEY=sk-ant-... \
+  -e AI_BASE_URL=https://api.anthropic.com/v1 \
+  -e AI_MODEL=claude-sonnet-4-6 \
+  -v "$PWD/input:/app/input" \
+  -v "$PWD/output:/app/output" \
+  -v "$PWD/processed:/app/processed" \
+  ghcr.io/erseco/docdigester2md:latest
+```
+
+Imagen con audio (incluye Whisper + torch + ffmpeg, mucho más pesada):
+
+```bash
+docker run --rm ... ghcr.io/erseco/docdigester2md:audio
+```
+
+Construir localmente:
+
+```bash
+docker build -t docdigester2md:latest .                          # ligera
+docker build --build-arg INCLUDE_AUDIO=true -t docdigester2md:audio .  # con audio
+```
+
+> **Nota:** las dependencias pesadas (`torch`, `torchaudio`, `openai-whisper`, `yt-dlp`) viven en
+> `requirements-audio.txt` y solo se instalan en la variante `:audio`. La imagen por defecto es
+> ligera y arranca rápido. El estado de procesado se guarda en `processed.yaml`.
