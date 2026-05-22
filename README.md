@@ -124,14 +124,14 @@ El proyecto se publica como Action Docker. Cualquier repositorio puede invocarlo
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: erseco/DocDigester2MD@v1
+- uses: ateeducacion/DocDigester2MD@v1
   with:
     ai_api_key: ${{ secrets.AI_API_KEY }}
     ai_base_url: ${{ secrets.AI_BASE_URL }}
     ai_model: ${{ secrets.AI_MODEL }}
 ```
 
-La Action usa la imagen pre-construida `ghcr.io/erseco/docdigester2md:latest` (ligera, sin
+La Action usa la imagen pre-construida `ghcr.io/ateeducacion/docdigester2md:latest` (ligera, sin
 Whisper). Procesa los archivos de `input/` y escribe los `.md` en `output/`. Para transcripción
 de audio/YouTube usa la imagen con Whisper (`:audio`) mediante un paso `container:` o
 `docker run` propio.
@@ -143,7 +143,7 @@ de audio/YouTube usa la imagen con Whisper (`:audio`) mediante un paso `containe
 Imagen ligera (documentos e imágenes — recomendada por defecto):
 
 ```bash
-docker pull ghcr.io/erseco/docdigester2md:latest
+docker pull ghcr.io/ateeducacion/docdigester2md:latest
 
 docker run --rm \
   -e AI_API_KEY=sk-ant-... \
@@ -152,13 +152,13 @@ docker run --rm \
   -v "$PWD/input:/app/input" \
   -v "$PWD/output:/app/output" \
   -v "$PWD/processed:/app/processed" \
-  ghcr.io/erseco/docdigester2md:latest
+  ghcr.io/ateeducacion/docdigester2md:latest
 ```
 
 Imagen con audio (incluye Whisper + torch + ffmpeg, mucho más pesada):
 
 ```bash
-docker run --rm ... ghcr.io/erseco/docdigester2md:audio
+docker run --rm ... ghcr.io/ateeducacion/docdigester2md:audio
 ```
 
 Construir localmente:

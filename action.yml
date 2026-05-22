@@ -1,6 +1,6 @@
 name: "DocDigester2MD"
 description: "Convierte documentos, imágenes, audio y vídeos de YouTube a Markdown."
-author: "erseco"
+author: "ateeducacion"
 
 branding:
   icon: "file-text"
@@ -21,4 +21,4 @@ inputs:
 # Para transcripción de audio, usa la etiqueta `:audio` en tu propio workflow.
 runs:
   using: "docker"
-  image: "docker://ghcr.io/erseco/docdigester2md:latest"
+  image: "docker://ghcr.io/ateeducacion/docdigester2md:latest"
