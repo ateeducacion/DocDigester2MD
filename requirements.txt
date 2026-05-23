@@ -1,8 +1,4 @@
 markitdown[all]
 openai
-openai-whisper
 youtube_transcript_api
-yt-dlp
-torch
-torchaudio
 pyyaml

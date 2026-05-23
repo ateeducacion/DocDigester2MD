@@ -1,0 +1,24 @@
+name: "DocDigester2MD"
+description: "Convierte documentos, imágenes, audio y vídeos de YouTube a Markdown."
+author: "ateeducacion"
+
+branding:
+  icon: "file-text"
+  color: "blue"
+
+inputs:
+  ai_api_key:
+    description: "API key compatible con la API de OpenAI (Anthropic, OpenAI, OpenRouter...)."
+    required: false
+  ai_base_url:
+    description: "URL base del endpoint del proveedor de IA."
+    required: false
+  ai_model:
+    description: "Identificador del modelo a utilizar."
+    required: false
+
+# Usa la imagen pre-construida en GHCR (no reconstruye en cada run).
+# Para transcripción de audio, usa la etiqueta `:audio` en tu propio workflow.
+runs:
+  using: "docker"
+  image: "docker://ghcr.io/ateeducacion/docdigester2md:latest"

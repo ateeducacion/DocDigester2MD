@@ -1,0 +1,14 @@
+.git
+.github
+input
+output
+processed
+processed.yaml
+processed.json
+*.md
+README.md
+LICENSE
+__pycache__
+*.pyc
+.venv
+venv
