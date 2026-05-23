@@ -2,7 +2,7 @@
 #
 # By default builds a LIGHT image (no Whisper/torch). Build the audio variant
 # with:  docker build --build-arg INCLUDE_AUDIO=true -t docdigester2md:audio .
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 ARG INCLUDE_AUDIO=false
 
