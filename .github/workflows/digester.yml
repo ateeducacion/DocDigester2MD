@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Runs inside the pre-built GHCR image (deps baked in → no pip install).
       # Requires the "Build & Push Docker image" workflow to have published the
